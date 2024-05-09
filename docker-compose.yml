@@ -1,0 +1,23 @@
+version: "3.3"
+services:
+  dlnr:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/dev/Dockerfile
+    shm_size: "32gb"
+    image: dlnr:0.1
+    container_name: dlnr
+    command: /bin/bash
+    environment:
+      # Use Agg backend for matplotlib
+      - DISPLAY=0
+    user: "${UID}:${GID}"
+    volumes:
+      - /mnt/nfs-work/ishitsuka/:/mnt/nfs-work/ishitsuka/
+      - ${PWD}/:/work
+    ports:
+      - 8888:8888
+    working_dir: "/work"
+    entrypoint:
+      - "/bin/sh"
+      - "/work/entry_point.sh"

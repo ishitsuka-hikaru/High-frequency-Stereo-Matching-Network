@@ -7,8 +7,11 @@ import argparse
 import time
 import logging
 import numpy as np
+import os
 import torch
+import torchvision.transforms as transforms
 from tqdm import tqdm
+from PIL import Image
 from dlnr import DLNR, autocast
 import stereo_datasets as datasets
 from utils.utils import InputPadder
@@ -18,8 +21,22 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+def save_tensor_image(tensor, filename):
+    # 無限大をテンソル内の最大値（無限大以外）に置き換える
+    max_value = tensor[torch.isfinite(tensor)].max()
+    tensor = torch.where(torch.isinf(tensor) & (tensor > 0), max_value, tensor)
+
+    # 無限大をテンソル内の最小値（無限大以外）に置き換える
+    min_value = tensor[torch.isfinite(tensor)].min()
+    tensor = torch.where(torch.isinf(tensor) & (tensor < 0), min_value, tensor)
+    
+    tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())
+    img = transforms.ToPILImage()(tensor)
+    img.save(filename)
+
+
 @torch.no_grad()
-def validate_eth3d(model, iters=32, mixed_prec=False):
+def validate_eth3d(model, iters=32, mixed_prec=False, save_image=False, save_path='results'):
     """ Peform validation using the ETH3D (train) split """
     model.eval()
     aug_params = {}
@@ -38,6 +55,22 @@ def validate_eth3d(model, iters=32, mixed_prec=False):
             _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
         flow_pr = padder.unpad(flow_pr.float()).cpu().squeeze(0)
         assert flow_pr.shape == flow_gt.shape, (flow_pr.shape, flow_gt.shape)
+        
+        image1 = image1.squeeze(0).cpu()
+        # print('image1.shape =', image1.shape, image1.dtype, image1.min(), image1.max())
+        # print('flow_pr.shape =', flow_pr.shape, flow_pr.dtype, flow_pr.min(), flow_pr.max())
+        # print('flow_gt.shape =', flow_gt.shape, flow_gt.dtype, flow_gt.min(), flow_gt.max())
+        # exit()
+
+        if save_image:
+            os.makedirs(save_path, exist_ok=True)
+            fname_i1 = os.path.join(save_path, f'{val_id:03d}_image1.png')
+            fname_pr = os.path.join(save_path, f'{val_id:03d}_flow_pr.png')
+            fname_gt = os.path.join(save_path, f'{val_id:03d}_flow_gt.png')
+            save_tensor_image(image1, fname_i1)
+            save_tensor_image(flow_pr, fname_pr)
+            save_tensor_image(flow_gt, fname_gt)
+            
         epe = torch.sum((flow_pr - flow_gt) ** 2, dim=0).sqrt()
 
         epe_flattened = epe.flatten()
@@ -61,7 +94,7 @@ def validate_eth3d(model, iters=32, mixed_prec=False):
 
 
 @torch.no_grad()
-def validate_kitti(model, iters=32, mixed_prec=False):
+def validate_kitti(model, iters=32, mixed_prec=False, save_image=False, save_path='results'):
     """ Peform validation using the KITTI-2015 (train) split """
     model.eval()
     aug_params = {}
@@ -94,6 +127,22 @@ def validate_kitti(model, iters=32, mixed_prec=False):
         # exit()
 
         assert flow_pr.shape == flow_gt.shape, (flow_pr.shape, flow_gt.shape)
+
+        image1 = image1.squeeze(0).cpu()
+        # print('image1.shape =', image1.shape, image1.dtype, image1.min(), image1.max())
+        # print('flow_pr.shape =', flow_pr.shape, flow_pr.dtype, flow_pr.min(), flow_pr.max())
+        # print('flow_gt.shape =', flow_gt.shape, flow_gt.dtype, flow_gt.min(), flow_gt.max())
+        # exit()
+
+        if save_image:
+            os.makedirs(save_path, exist_ok=True)
+            fname_i1 = os.path.join(save_path, f'{val_id:03d}_image1.png')
+            fname_pr = os.path.join(save_path, f'{val_id:03d}_flow_pr.png')
+            fname_gt = os.path.join(save_path, f'{val_id:03d}_flow_gt.png')
+            save_tensor_image(image1, fname_i1)
+            save_tensor_image(flow_pr, fname_pr)
+            save_tensor_image(flow_gt, fname_gt)
+
         epe = torch.sum((flow_pr - flow_gt) ** 2, dim=0).sqrt()
 
         epe_flattened = epe.flatten()
@@ -233,6 +282,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_downsample', type=int, default=2, help="resolution of the disparity field (1/2^K)")
     parser.add_argument('--slow_fast_gru', action='store_true', help="iterate the low-res GRUs more frequently")
     parser.add_argument('--n_gru_layers', type=int, default=3, help="number of hidden GRU levels")
+    parser.add_argument('--save_image', action='store_true', help="save images", default=False)
+    parser.add_argument('--save_path', type=str, default='results', help="save path")
     args = parser.parse_args()
 
     model = torch.nn.DataParallel(DLNR(args), device_ids=[0])
@@ -259,10 +310,16 @@ if __name__ == '__main__':
     use_mixed_precision = False
 
     if args.dataset == 'eth3d':
-        validate_eth3d(model, iters=args.valid_iters, mixed_prec=use_mixed_precision)
+        validate_eth3d(
+            model, iters=args.valid_iters, mixed_prec=use_mixed_precision,
+            save_image=args.save_image, save_path=args.save_path,
+        )
 
     elif args.dataset == 'kitti':
-        validate_kitti(model, iters=args.valid_iters, mixed_prec=use_mixed_precision)
+        validate_kitti(
+            model, iters=args.valid_iters, mixed_prec=use_mixed_precision,
+            save_image=args.save_image, save_path=args.save_path,
+        )
 
     elif args.dataset in [f"middlebury_{s}" for s in 'FHQ']:
         validate_middlebury(model, iters=args.valid_iters, split=args.dataset[-1], mixed_prec=use_mixed_precision)
