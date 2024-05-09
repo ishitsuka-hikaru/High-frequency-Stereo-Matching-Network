@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "dlnr"
+version = "0.1.0"
+description = ""
+authors = ["ISHITSUKA Hikaru <h.ishitsuka@idein.jp>"]
+readme = "README.md"
+package-mode = false
+
+
+[[tool.poetry.source]]
+name = "pytorch"
+# url = "https://download.pytorch.org/whl/cu117"
+url = "https://download.pytorch.org/whl/cu120"
+priority = "supplemental"
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+# python = "^3.9"
+# torch = {url = "https://download.pytorch.org/whl/cu117/torch-1.12.0+cu117-cp38-cp38-linux_x86_64.whl"}
+# torchvision = {url = "https://download.pytorch.org/whl/cu117/torchvision-0.13.0+cu117-cp38-cp38-linux_x86_64.whl"}
+# torchaudio = {url = "https://download.pytorch.org/whl/cu117/torchaudio-0.12.0+cu117-cp38-cp38-linux_x86_64.whl"}
+# torch = "^1.12.0"
+# torchvision = "^0.13.0"
+# torchaudio = "^0.12.0"
+scipy = "^1.13.0"
+tqdm = "^4.66.4"
+tensorboard = "^2.16.2"
+opt-einsum = "^3.3.0"
+imageio = "^2.34.1"
+opencv-python = "^4.9.0.80"
+scikit-image = "^0.23.2"
+einops = "^0.8.0"
+numpy = "^1.26.4"
+# torch = "^2.3.0"
+# torchvision = "^0.18.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
